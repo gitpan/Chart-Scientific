@@ -34,12 +34,12 @@ BEGIN {
 }
 
 sub get_test_data {
-    my @file_names = <test*ps>;
+    my @file_names = <t/test*ps>;
     return get_data ( @file_names );
 }
 
 sub get_reference_data {
-    my @file_names = <reference*ps>;
+    my @file_names = <t/reference*ps>;
     return get_data ( @file_names );
 }
 
@@ -70,13 +70,13 @@ sub make_test_images {
                    : 0..scalar @pars - 1;
 
     foreach my $i ( @nums ) {
-        my $dev = sprintf "test%02d.ps/cps", $i+1;
+        my $dev = sprintf "t/test%02d.ps/cps", $i+1;
         eval {
             my $plt = Chart::Scientific->new ( $pars[$i] );
-            $plt->setvars ( device => $dev) ;#, verbose => -1 );
+            $plt->setvars ( device => $dev );
             $plt->plot ();
         };
-        #warn "$0: Plot ", $i+1, " error: $@\n" if $@;
+        #warn "$Plot ", $i+1, " error: $@\n" if $@;
     }
 }
 
@@ -136,7 +136,7 @@ sub get_pars {
             title  => 'test: x_data and multiple y_data, yerr_data',
         },
         { #3
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col    => 'x',
             y_col    => 'y,z',
@@ -146,7 +146,7 @@ sub get_pars {
             title    => 'test: read x, multiple y, y_err from data file',
         },
         { #4
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col    => 'x',
             y_col    => 'y,z',
@@ -157,7 +157,7 @@ sub get_pars {
             residuals => 1,
         },
         { #5
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col    => 'x',
             y_col    => 'y,z',
@@ -169,7 +169,7 @@ sub get_pars {
             residuals => 1,
         },
         { #6
-            filename => 'data.rdb',
+            filename => 't/data.rdb',
             x_col    => 'x',
             y_col    => 'y,z',
             yerr_col => 'err,err',
@@ -178,7 +178,7 @@ sub get_pars {
             title    => 'test: read x, multiple y, y_err from RDB file',
         },
         { #7
-            filename => 'data.rdb',
+            filename => 't/data.rdb',
             x_col    => 'x',
             y_col    => 'y,z',
             yerr_col => 'err,err',
@@ -188,7 +188,7 @@ sub get_pars {
             residuals => 1,
         },
         { #8
-            filename => 'data.rdb',
+            filename => 't/data.rdb',
             x_col    => 'x',
             y_col    => 'y,z',
             yerr_col => 'err,err',
@@ -344,7 +344,7 @@ sub get_pars {
             residuals => 1,
         },
         { #28
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col     => 'x',
             y_col     => 'ylogtest',
@@ -353,7 +353,7 @@ sub get_pars {
             group_col => 'group',
         },
         { #29
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col     => 'x',
             y_col     => 'ylogtest',
@@ -361,7 +361,7 @@ sub get_pars {
             group_col => 'group',
         },
         { #30
-            filename => 'data.rdb',
+            filename => 't/data.rdb',
             x_col     => 'x',
             y_col     => 'ylogtest',
             yerr_col  => 'ylogtest_err',
@@ -369,7 +369,7 @@ sub get_pars {
             group_col => 'group',
         },
         { #31
-            filename => 'data.rdb',
+            filename => 't/data.rdb',
             x_col     => 'x',
             y_col     => 'ylogtest',
             yerr_col  => 'ylogtest_err',
@@ -531,7 +531,7 @@ sub get_pars {
         { #49
             x_data   => \@axes_x,
             y_data   => \@axes_y1,
-            filename => 'data.dat',
+            filename => 't/data.dat',
             split    => '\t',
             x_col    => 'x',
             y_col    => 'y,z',

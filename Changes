@@ -1,7 +1,11 @@
 Revision history for Perl extension Chart::Scientific.
 
+0.13  Tue Nov 30 15:55:00 2004
+	- Fixed problem with test in t/.
+
 0.12  Tue Nov 30 09:35:30 2004
-	- Changed parameter axis_residual to axis_residuals for consistency.
+	- Changed parameter axis_residual to axis_residuals for consistency,
+      updated documentation.
 
 0.11  Tue Nov 30 08:35:30 2004
 	- Fixed bad POD-- it was breaking the indexing on CPAN.
