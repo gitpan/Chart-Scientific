@@ -14,7 +14,7 @@ use PDL::Graphics::PGPLOT;
 use Tie::IxHash;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 our @EXPORT_OK = qw/make_plot/;
 
@@ -33,7 +33,7 @@ sub make_plot {
 #
 our %legal_inputs = (
     axis            => 1,
-    axis_residual   => 1,
+    axis_residuals  => 1,
     char_size       => 1,
     colors          => 1,
     defaults        => 1,
@@ -143,7 +143,7 @@ sub default_args {
         nopoints         => 0,
         noline           => 0,
         axis             => 0,
-        axis_residual    => 0,
+        axis_residuals   => 0,
 
         filename         => undef,
         split            => undef,
@@ -589,7 +589,7 @@ sub set_window {
     }
     else { # residual window
         if ( $self->{residuals} ) {
-            if ( $self->{axis_residual} ) {
+            if ( $self->{axis_residuals} ) {
                 $env_pars[-1]{Axis}[0] .= 'A';
                 $env_pars[-1]{Axis}[1] .= 'A';
             }
@@ -1145,15 +1145,21 @@ Chart::Scientific - Generate simple 2-D scientific plots with logging, errbars, 
 
 =head1 SYNOPSIS
 
-Functional interface:
+=head2 Procedural interface
 
     use Chart::Scientific qw/make_plot/;
     make_plot ( x_data => \@x_values, y_data => \@yvalues );
 
+The subroutine make_plot creates a Chart::Scientific object
+passing along every argument it was given.  See B<OPTIONS> below
+for a full list of allowed arguments.
+
+=head2 Object Oriented interface
+
 Plot data from two arrays:
 
     use Chart::Scientific;
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
         x_data => \@x_values,
         y_data => \@y_values,
     );
@@ -1162,7 +1168,7 @@ Plot data from two arrays:
 or piddles:
 
     use Chart::Scientific;
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
         x_data => $x_pdl,
         y_data => $y_pdl,
     );
@@ -1172,7 +1178,7 @@ Plot data from an arbitrarily-delimitted file (the data in columns "vel" and
 "acc" vs the data in the column "time", with errorbars from the columns
 "vel_err" and "acc_err"):
 
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
                   filename => 'data.tab-separated', 
                   split    => '\t',
                   x_col    => 'time',
@@ -1185,7 +1191,7 @@ Plot data from an arbitrarily-delimitted file (the data in columns "vel" and
 
 Plot data in arrays:
 
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
                   x_data => \@height,
                   y_data => [ \@weight, \@body_mass_index  ],
               );
@@ -1193,7 +1199,7 @@ Plot data in arrays:
 
 Plot data in pdls:
 
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
                   x_data => $pdl_x,
                   y_data => [ $pdl_y1, $pdl_y2 ],
               );
@@ -1201,7 +1207,7 @@ Plot data in pdls:
 
 Plot the above data to a file:
 
-    my $plt = Pdplot->new (
+    my $plt = Chart::Scientific->new (
                   x_data => $pdl_x,
                   y_data => [ $pdl_y1, $pdl_y2 ],
                   device => 'myplot.ps/cps',
@@ -1227,7 +1233,7 @@ can be specified.
 
 =head1 PUBLIC METHODS
 
-=head1 new ( %options | option-values list )
+=head2 new ( %options | option-values list )
 
 Creates a new Chart::Scientific object, and intializes it with the given
 options.  Options can be given either as a hash or a simple list of option =>
@@ -1235,13 +1241,13 @@ value pairs.  Legal options are given in the B<OPTIONS> section.
 
 
 
-=head1 setvars ( %options | option-values list )
+=head2 setvars ( %options | option-values list )
 
 Sets new options for a Chart::Scientific instance or overwrites existing
 options.  The input format is identical to the Constructor's.  See the
 B<OPTIONS> section for a complete list of options.
 
-=head1 plot
+=head2 plot
 
 Create the plot.  The plot is written the the existing device, 
 whether it is a window or a file.
@@ -1257,13 +1263,13 @@ all data must be of the same type.
        
 =over 8
 
-=item x_data
+=item B<x_data>
 
 An array or piddle that contains the x-data for this plot.
 The x_data, y_data, and yerr_data specified must be of the same datatype,
 arrays or piddles.
 
-=item y_data
+=item B<y_data>
 
 An array or piddle that contains the y-data for this plot.
 Multiple sets of y-data to plot against the same x-data can be specified
@@ -1271,7 +1277,7 @@ with an array of arrays or an array of piddles.
 The x_data, y_data, and yerr_data specified must be of the same datatype,
 arrays or piddles.
 
-=item yerr_data
+=item B<yerr_data>
 
 An array or piddle that contains the error bars for the y-data.
 
@@ -1298,7 +1304,7 @@ arrays or piddles.
 
 =over 8
 
-=item filename
+=item B<filename>
 
 The name of the file to read data from.  Specify 'stdin' to read from STDIN
 (using the constructor or setvars).  If B<split> (see below) is not specified,
@@ -1308,7 +1314,7 @@ attempt to read the file if the RDB.pm module is not on the local system will
 be made: RDB comments (leading '#'s) are stripped, the column definition line
 is ignored, and the body of the file is split into columns on tabs.
 
-=item split
+=item B<split>
 
 Used for non-RDB files,  B<split> specifies which character(s) (or regex) to
 split the data from the file on.  For a comma-delimitted file, --split ','
@@ -1319,33 +1325,33 @@ specified by B<filename> is an RDB file, this switch should not be used.
 The first line of a file must list the names of the columns, delimmited
 identically.
 
-=item x_col
+=item B<x_col>
 
 The name of the x column.
 
-=item y_col
+=item B<y_col>
 
 A comma-separated list of the name(s) of the y column(s).
 
-=item yerr_col
+=item B<yerr_col>
 
 A comma-separated list of the name(s) of the y errorbar column(s).
 
-=item group_col
+=item B<group_col>
 
 (Optional) The name of the grouping column.  The grouping column separates
 a x_col or y_col into different datasets, based on the value of the grouping
 column in each row.  For example, if xcol => x, y_col => y, group => g:
 
- x   y   g
- 1   2   dataset1
- 2   3   dataset1
- 3   4   dataset1
- 4   5   dataset1
- 5   12  dataset2
- 6   13  dataset2
- 7   14  dataset2
- 8   15  dataset2
+                     x   y   g
+                     1   2   dataset1
+                     2   3   dataset1
+                     3   4   dataset1
+                     4   5   dataset1
+                     5   12  dataset2
+                     6   13  dataset2
+                     7   14  dataset2
+                     8   15  dataset2
 
 There would be two groups, dataset1 containing x = (1,2,3,4) and y = (2,3,4,5),
 and dataset2 containing x = (5,6,7,8) and y = (12,13,14,15).  The two groups
@@ -1357,14 +1363,14 @@ of data would be plotted as separate lines on the plot.
 
 =over 8
 
-=item xrange 
+=item B<xrange >
 
 Specify a comma-separated non-default range for the X values.  Example: an
 xrange value of '-5,5' will plot the data from x=-5 to x=5.  If the I<xlog>
 flag is on, the xrange values must be specified in powers of ten.  E.G. -xlog
 -x -1,2 will plot the data on a logged X range from 0.1 to 100.
 
-=item yrange
+=item B<yrange>
 
 Specify a comma-separated non-default range for the X values.  Example: a
 yrange value of '-5,5' will plot the data from y=-5 to y=5.  If the I<ylog>
@@ -1377,7 +1383,7 @@ flag is on, the yrange values must be specified in powers of ten.  E.G. -ylog
 
 =over 8
 
-=item device
+=item B<device>
 
 The PGPLOT plotting device.  Use "filename.ps/cps" to print to a postscript
 file, or "filename.png/png" to print to a PNG file.  All plotting devices
@@ -1390,12 +1396,12 @@ prints to a new window.
 
 =over 8
 
-=item nopoints
+=item B<nopoints>
 
 Set to true to supress points plotting.  Points are plotted by
 default.
 
-=item noline
+=item B<noline>
 
 Set to true to supress line drawing.  Lines are drawn by default.
 
@@ -1405,11 +1411,11 @@ Set to true to supress line drawing.  Lines are drawn by default.
 
 =over 8
 
-=item xlog
+=item B<xlog>
 
 Set to true to create a plot with a logged x axis.
 
-=item ylog
+=item B<ylog>
 
 Set to true to create a plot with a logged y axis.
 
@@ -1418,7 +1424,8 @@ Set to true to create a plot with a logged y axis.
 =item I<Residual options>
 
 =over 8
-=item residuals
+
+=item B<residuals>
 
 If true, residuals will be calculated and drawn in a second pane.  The
 residuals will be between the first two specified y-values (this needs an
@@ -1430,7 +1437,7 @@ y-data columns.  For plots that use a group_col column, the residuals are
 the interpolated differences between the first and the second group_col-column
 sets of y-data.
 
-=item residuals_size
+=item B<residuals_size>
 
 The fraction of the plotting area that the residuals occupy.
 The default is 0.25, and the range is 0.0 to 1.0.
@@ -1440,19 +1447,20 @@ The default is 0.25, and the range is 0.0 to 1.0.
 =item I<Legend options>
 
 =over 8
-=item nolegend
+
+=item B<nolegend>
 
 Setting this to a true value will suppress legend drawing.  The
 default is 0.
 
-=item legend_location
+=item B<legend_location>
 
 A comma-separated list that to specify a location for the plot's
 legend.  The default is .02,-.05.  The coordates are in the range
 [0-1] for x, and [0,-1] for y, with the origin in the upper-left
 corner of the plot.
 
-=item legend_text
+=item B<legend_text>
 
 A comma-separated list, with one item to specify the text for each
 set of dependent data.  The list must be given in in the same order
@@ -1463,30 +1471,31 @@ as the data sets are given.
 =item I<Labelling options>
 
 =over 8
-=item title
+
+=item B<title>
 
 A string to specify the title of the plot.
 
-=item subtitle
+=item B<subtitle>
 
 A string to specify the subtitle of the plot.  If the PGPLOT.pm
 module is not on the system, the subtitle will be appended to the
 title.
 
-=item xlabel
+=item B<xlabel>
 
 A string to specify the label for the x axis.
 
-=item ylabel
+=item B<ylabel>
 
 A string to specify the label for the y axis.
 
-=item residuals_label
+=item B<residuals_label>
 
 A string to specify the label for the residuals.  The default is
 "deltas".
 
-=item residuals_pos
+=item B<residuals_pos>
 
 Setting this to a true value will move the numbering on the
 residuals plot from the left to the right side of the pane.
@@ -1497,15 +1506,15 @@ residuals plot from the left to the right side of the pane.
 
 =over 8
 
-=item line_width
+=item B<line_width>
 
 The PGPlot line width.  The default is 2.
 
-=item char_size
+=item B<char_size>
 
 The PGPlot character size.  The default is 1.
 
-=item colors
+=item B<colors>
 
 A comma-separated string that specifies the color set to use for
 drawing points and lines.  For example, if 'red,blue,black' is the
@@ -1513,11 +1522,11 @@ argument, the first set of points will be drawn red, the second
 blue, the third black, and then the fourth will be drawn red agan.
 The default is 'black,red,green,blue,yellow,cyan,magenta,gray'.
 
-=item font
+=item B<font>
 
 A PGPlot font integer.  The default is 1, and the range is 1-4.
 
-=item symbols
+=item B<symbols>
 
 A comma-separated string that specifies the symbol set to use for
 drawing points and lines.  For example, if '0,3,4' is the argument,
@@ -1532,14 +1541,14 @@ points will be drawn with symbol 0, and so forth.  The default is
 
 =over 8
 
-=item axis
+=item B<axis>
 
-Setting this to true will draw the x=0 and y=o axes on the main
+Setting this to true will draw the x=0 and y=0 axes on the main
 plotting pane.
 
-=item axis_residual
+=item B<axis_residuals>
 
-Setting this to true will draw the x=0 and y=o axes on the residuals plotting
+Setting this to true will draw the x=0 and y=0 axes on the residuals plotting
 pane.
 
 =back
@@ -1547,23 +1556,24 @@ pane.
 =item I<Help and verbosity options>
 
 =over 8
-=item help
+
+=item B<help>
 
 Set this to true to print a short help message and exit.
 
-=item usage
+=item B<usage>
 
 Set this to true to print a lengthy help message and exit.
 
-=item defaults
+=item B<defaults>
 
 Set this to true to print default values of the arguments and exit.
 
-=item verbose
+=item B<verbose>
 
 A verbose setting of 0 results in nearly silent operation. -1 suppresses all
-output.  The range is -1 to 4, with increasing verbosity at
-each level.
+nonfatal output.  The range is -1 to 4, with increasing verbosity at each
+level.
 
 =back
 

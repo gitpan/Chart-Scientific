@@ -73,7 +73,7 @@ sub make_test_images {
         my $dev = sprintf "test%02d.ps/cps", $i+1;
         eval {
             my $plt = Chart::Scientific->new ( $pars[$i] );
-            $plt->setvars ( device => $dev, verbose => -1 );
+            $plt->setvars ( device => $dev) ;#, verbose => -1 );
             $plt->plot ();
         };
         #warn "$0: Plot ", $i+1, " error: $@\n" if $@;
@@ -494,7 +494,7 @@ sub get_pars {
             title       => 'axis with resids and axis_resids',
             residuals   => 1,
             axis        => 1,
-            axis_residual => 1,
+            axis_residuals => 1,
         },
         { #44
             x_data      =>   \@axes_x,
@@ -508,14 +508,14 @@ sub get_pars {
             y_data        => [ \@axes_y1, \@axes_y2 ],
             residuals     => 1,
             axis          => 1,
-            axis_residual => 1,
+            axis_residuals => 1,
             title         => 'axis with resids and axis_resids',
         },
         { #46
             x_data        => \@axes_x,
             y_data        => [ \@axes_y1, \@axes_y2 ],
             residuals     => 1,
-            axis_residual => 1,
+            axis_residuals => 1,
             title         => 'just axis_resids',
         },
         { #47
