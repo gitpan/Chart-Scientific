@@ -14,7 +14,7 @@ use PDL::Graphics::PGPLOT;
 use Tie::IxHash;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 our @EXPORT_OK = qw/make_plot/;
 
@@ -26,6 +26,47 @@ our @EXPORT_OK = qw/make_plot/;
 sub make_plot {
     my $plotter = Chart::Scientific->new ( @_ );
     $plotter->plot ();
+}
+
+sub default_args {
+    return {
+        title            => '',
+        subtitle         => undef,
+        xlabel           => '',
+        ylabel           => '',
+        residuals_label  => '',
+        residuals_pos    =>  0,
+        nolegend         => 0,
+        legend_location  => '.02,-.05',
+        residuals_size   => 0.25,
+
+        xrange           => undef,
+        yrange           => undef,
+        xlog             => 0,
+        ylog             => 0,
+        colors           => 'black,red,green,blue,cyan,magenta,gray',
+        symbols          =>  [ 3, 0, 5, 4, 6..99 ],
+
+        font             => '1',
+        char_size        => '1',
+        line_width       => '2',
+
+        nopoints         => 0,
+        noline           => 0,
+        axis             => 0,
+        axis_residuals   => 0,
+
+        filename         => undef,
+        split            => undef,
+
+        device           => '/xs',
+        only             => 'only',
+        defaults         => 0,
+        verbose          => 0,
+        help             => 0,
+        usage            => 0,
+        version          => 0,
+    };
 }
 
 # Class hash member and member method to determine if 
@@ -102,7 +143,6 @@ sub new {
     # Use the initial arguments to set up member variables:
     #
     $self->setvars ( @args );
-    $self->death_or_help_if_necessary ();
     $self->massage_args ();
 
     $self->read_points () if !$self->points_loaded () && !$self->pdls_loaded ();
@@ -112,50 +152,19 @@ sub new {
     return $self;
 }
 
+sub clear {
+    my $self = shift () or die "no self";
+    $self = {};
+}
+
+sub restore_defaults {
+    my $self = shift () or die "no self";
+    $self = default_args ();
+}
+
 sub DESTROY {
     my $self = shift () or die "no self";
     undef $self;
-}
-
-sub default_args {
-    return {
-        title            => '',
-        subtitle         => undef,
-        xlabel           => '',
-        ylabel           => '',
-        residuals_label  => '',
-        residuals_pos    =>  0,
-        nolegend         => 0,
-        legend_location  => '.02,-.05',
-        residuals_size   => 0.25,
-
-        xrange           => undef,
-        yrange           => undef,
-        xlog             => 0,
-        ylog             => 0,
-        colors           => 'black,red,green,blue,cyan,magenta,gray',
-        symbols          => undef,
-
-        font             => '1',
-        char_size        => '1',
-        line_width       => '2',
-
-        nopoints         => 0,
-        noline           => 0,
-        axis             => 0,
-        axis_residuals   => 0,
-
-        filename         => undef,
-        split            => undef,
-
-        device           => '/xs',
-        only             => 'only',
-        defaults         => 0,
-        verbose          => 0,
-        help             => 0,
-        usage            => 0,
-        version          => 0,
-    };
 }
 
 sub points_loaded {
@@ -175,19 +184,43 @@ sub setvars {
     while ( @args ) {
         my $arg = shift ( @args );
 
-        if ( 'HASH' eq ref $arg ) {
+        if ( 'HASH' ne ref $arg ) {
+            die "Attempting to set illegal data member $arg\n"
+                if ! is_legal_input ( $arg );
+            $self->{$arg} = shift ( @args );
+        }
+        else {
             foreach ( keys %$arg ) {
                 die "Attempting to set illegal data member $_\n"
                     if ! is_legal_input ( $_ );
                 $self->{$_} = $arg->{$_};
             }
         }
-        else {
-            die "Attempting to set illegal data member $arg\n"
-                if ! is_legal_input ( $arg );
-            $self->{$arg} = shift ( @args );
-        }
     }
+    $self->death_or_help_if_necessary ();
+}
+
+sub death_or_help_if_necessary {
+    my $self = shift () or die "no self";
+
+    die "Chart::Scientific version $VERSION"
+        if $self->{version};
+
+    die "Cannot specify x_data/y_data if filename has been specified"
+        if $self->{filename} && exists $self->{y_data};
+
+    die "Must specify y_data if filename has not been specified " .
+        "(are you trying to call the constructor without plot data?)\n"
+        if ! defined $self->{y_data} && !$self->{filename};
+
+    # Die if defaults are requested
+    #
+    die Data::Dumper->Dump( [ $self ], [ qw( Chart::Scientific ) ] ),
+       "Printing defaults and exiting on user request"
+            if $self->{defaults};
+
+    help ( 1 ) if $self->{help};
+    help ( 2 ) if $self->{usage};
 }
 
 sub getvars {
@@ -387,7 +420,7 @@ sub points_draw_loop {
     my $bRes = shift () || 0;
 
     my $opt_num = 0;
-    my @syms   = split /,/, $self->{symbols};
+    my @syms = @{$self->{symbols}};
     my @colors = split /,/, $self->{colors};
 
     my ( $y_key, $e_key ) = $bRes ? qw/res_data res_errs/
@@ -396,10 +429,10 @@ sub points_draw_loop {
     foreach my $brk ( sort keys %{$self->{pdls}{x_data}} ) {
         foreach ( 0 .. scalar @{$self->{pdls}{$y_key}{$brk}} - 1 ) {
 
-            $self->{opts}{pt_col}[$opt_num] = $colors[$opt_num % scalar @colors];
-            $self->{opts}{symbol}[$opt_num] = $syms[  $opt_num % scalar @syms  ];
-            $self->{opts}{ln_col}[$opt_num] = $colors[$opt_num % scalar @colors];
-            $self->{opts}{ln_sty}[$opt_num] = 1 + $opt_num % 5;
+            $self->{opts}{pt_col}[$opt_num] =$colors[$opt_num % scalar @colors];
+            $self->{opts}{symbol}[$opt_num] =$syms[  $opt_num % scalar @syms  ];
+            $self->{opts}{ln_col}[$opt_num] =$colors[$opt_num % scalar @colors];
+            $self->{opts}{ln_sty}[$opt_num] =1 + $opt_num % 5;
 
             my $pointsopt = { color     => $self->{opts}{pt_col}[$opt_num],
                               symbol    => $self->{opts}{symbol}[$opt_num],
@@ -821,6 +854,11 @@ sub get_limits {
     $self->pad_limits ();
 }
 
+sub limits {
+    my $self = shift () or die "no self";
+    return $self->{limits};
+}
+
 sub limits_width {
     my ( $self, @axes ) = @_;
     return map {
@@ -871,6 +909,7 @@ sub pad_limits {
     }
 }
 
+
 sub massage_args {
     my $self = shift () or die "no self";
 
@@ -891,7 +930,7 @@ sub massage_args {
                defined $self->{$_};
     }
 
-    die "Must have two y data columns or have a group_col column to use residuals"
+    die "Must have two y data columns or a group_col column to use residuals"
         if $self->{residuals} &&
            ( grep { defined $self->{$_} &&
                     scalar @{$self->{$_}} < 2 } qw/y y_data/ )
@@ -997,30 +1036,6 @@ sub read_nonfile_points {
                                   ? [ split /,/, $self->{y_col} ]
                                   : [ map { "y$_" }
                                           0..scalar @{$self->{y_data}} - 1 ];
-}
-
-sub death_or_help_if_necessary {
-    my $self = shift () or die "no self";
-    die "Chart::Scientific version $VERSION"
-        if $self->{version};
-
-    die "Cannot specify x_data/y_data if filename has been specified"
-        if $self->{filename} && exists $self->{y_data};
-
-    die "Must specify y_data if filename has not been specified"
-        if ! defined $self->{y_data} && !$self->{filename};
-
-    $self->{symbols} = join ",", 3, 0, 5, 4, 6..99
-        if ! $self->{symbols};
-
-    # Die if defaults are requested
-    #
-    die Data::Dumper->Dump( [ $self ], [ qw( Chart::Scientific ) ] ),
-       "Printing defaults and exiting on user request"
-            if $self->{defaults};
-
-    help ( 1 ) if $self->{help};
-    help ( 2 ) if $self->{usage};
 }
 
 sub set_plot_position {
@@ -1214,13 +1229,29 @@ Plot the above data to a file:
               );
     $plt->plot ();
 
+Generate multiple plots with the same object:
 
+    my @x1 = 10..19;
+    my @y1 = 20..29;
+    my @y2 = 50..59;
+
+    my $plt = Chart::Scientific->new (
+                  x_data => \@x1,
+                  y_data => \@y1,
+                  xlabel => "test x",
+                  ylabel => "test y",
+              );
+    $plt->setvars ( title => 'testa', device => '1/xs' );
+    $plt->plot ();
+
+    $plt->setvars ( title => 'testb', device => '2/xs' );
+    $plt->plot ();
 
 =head1 DESCRIPTION
 
-B<Chart::Scientific> is a simple PDL-based plotter.  2-D plots can be easily made from
-data in an array or PDL, or from a file containing columns of data.  The
-columns can be delimited with any character(s) or regular expression.
+B<Chart::Scientific> is a simple PDL-based plotter.  2-D plots can be easily
+made from data in an array or PDL, or from a file containing columns of data.
+The columns can be delimited with any character(s) or regular expression.
 
 There are many plotting options:
 
@@ -1236,10 +1267,10 @@ can be specified.
 =head2 new ( %options | option-values list )
 
 Creates a new Chart::Scientific object, and intializes it with the given
-options.  Options can be given either as a hash or a simple list of option =>
-value pairs.  Legal options are given in the B<OPTIONS> section.
-
-
+options.  The options defining plot data (I<i.e.> {filename,x_col,y_col} or
+{x_data,y_data}) B<must> be specified in the constructor.  All other options
+can be given either as a hash or a simple list of option => value pairs.  Legal
+options are given in the B<OPTIONS> section.
 
 =head2 setvars ( %options | option-values list )
 
@@ -1251,6 +1282,19 @@ B<OPTIONS> section for a complete list of options.
 
 Create the plot.  The plot is written the the existing device, 
 whether it is a window or a file.
+
+=head2 getvars ( option list )
+
+Returns a list of the values of the options listed in the argument. 
+
+=head2 restore_defaults
+
+Restore the Chart::Scientific object to the default settings.
+
+=head2 clear
+
+Completely clear the Chart::Scientific object, setting it equal to 
+an empty hashref. Arguably less useful than restore_defaults.
 
 =head1 OPTIONS
 
@@ -1528,12 +1572,11 @@ A PGPlot font integer.  The default is 1, and the range is 1-4.
 
 =item B<symbols>
 
-A comma-separated string that specifies the symbol set to use for
-drawing points and lines.  For example, if '0,3,4' is the argument,
-the first set of points will be drawn with symbol 0, the second
-with symbol 3, and the third with symbol 4.  The fourth set of
-points will be drawn with symbol 0, and so forth.  The default is
-'5,3,0,4" followed by the sequence 6...99.
+An anonymous array of PGPLOT symbol types, which specify the symbol set to use
+for drawing points and lines.  For example, if [0,3,4] is the argument, the
+first set of points will be drawn with symbol 0, the second with symbol 3, and
+the third with symbol 4.  The fourth set of points will be drawn with symbol 0,
+and so forth.  The default is [ 3, 0, 5, 4, 6..99 ].
 
 =back
 
@@ -1581,7 +1624,7 @@ level.
 
 =head1 SEE ALSO
 
-PDL and PGPLOT.pm.
+PDL, especially PDL::Graphics::PGPLOT, and PGPLOT.pm.
 
 =head1 LICENSE
 

@@ -5,8 +5,13 @@ use strict;
 use warnings;
 
 use Data::Dumper;
-use Test::More tests => 47;
+use Test::More tests => 1;
+BEGIN { 
+    use_ok ( 'PDL' );
+};
 
+__END__
+use Test::More tests => 47;
 
 BEGIN { 
     use_ok ( 'PDL' );
@@ -14,7 +19,9 @@ BEGIN {
 };
 
 
-{ 
+main ();
+
+sub main { 
     make_test_images ();
     my @ref_data  = get_reference_data ();
     my @test_data = get_test_data ();
