@@ -14,7 +14,7 @@ use PDL::Graphics::PGPLOT;
 use Tie::IxHash;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 our @EXPORT_OK = qw/make_plot/;
 
@@ -1141,7 +1141,7 @@ sub help {
 
 =head1 NAME
 
-Chart::Scientific- Generate simple 2-D scientific plots with logging, errbars, etc.
+Chart::Scientific - Generate simple 2-D scientific plots with logging, errbars, etc.
 
 =head1 SYNOPSIS
 
