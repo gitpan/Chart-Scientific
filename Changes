@@ -1,5 +1,8 @@
 Revision history for Perl extension Chart::Scientific.
 
+0.15  Thu 15 Dec 08:57:00 2004
+	- Oop, didn't have PGPLOT in the Makefile.PL dependencies.
+
 0.14  Thu 09 Dec 09:37:00 2004
 	- Problems with test more prenicious than I thought.  They succeede with "perl t/Chart-Scientific", but not "make test".  Problem with my machine? Removed most tests for now.
 

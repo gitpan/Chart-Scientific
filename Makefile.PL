@@ -9,6 +9,7 @@ WriteMakefile(
                             PDL                   => 0,
                             PDL::NiceSlice        => 0,
                             PDL::Graphics::PGPLOT => 0,
+                            PGPLOT                => 0,
                             Tie::IxHash           => 0,
                          },
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
