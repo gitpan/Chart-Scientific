@@ -14,9 +14,17 @@ use PDL::Graphics::PGPLOT;
 use Tie::IxHash;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 our @EXPORT_OK = qw/make_plot/;
+
+# TODO: 
+#    Add option to force display to a geometric square on the screen, so 
+#      circles will appear circular
+#    Add fuction-plotting ability.  Default it to nopoints
+#    Class methods clear and restore_defaults don't work right (don't seem to 
+#      reset the data associate with the instance!).
+#
 
 
 ################################################################################
@@ -32,18 +40,18 @@ sub default_args {
     return {
         title            => '',
         subtitle         => undef,
-        xlabel           => '',
-        ylabel           => '',
+        x_label          => '',
+        y_label          => '',
         residuals_label  => '',
         residuals_pos    =>  0,
         nolegend         => 0,
         legend_location  => '.02,-.05',
         residuals_size   => 0.25,
 
-        xrange           => undef,
-        yrange           => undef,
-        xlog             => 0,
-        ylog             => 0,
+        x_range          => undef,
+        y_range          => undef,
+        x_log             => 0,
+        y_log             => 0,
         colors           => 'black,red,green,blue,cyan,magenta,gray',
         symbols          =>  [ 3, 0, 5, 4, 6..99 ],
 
@@ -82,6 +90,7 @@ our %legal_inputs = (
     device          => 1,
     filename        => 1,
     font            => 1,
+    function        => 1,
     group_col       => 1,
     help            => 1,
     legend_location => 1,
@@ -107,24 +116,50 @@ our %legal_inputs = (
     usage           => 1,
     verbose         => 1,
    #win             => 1,
-    x_col           => 1,
-    x_data          => 1,
-    xlabel          => 1,
-    xlog            => 1,
-    xrange          => 1,
-    y_col           => 1,
-    y_data          => 1,
-    yerr_col        => 1,
-    yerr_data       => 1,
-    ylabel          => 1,
-    ylog            => 1,
-    yrange          => 1,
+#
+#   [xy]_                 # [xy][^_] These should be fixed before testing now.
+#
+    x_col           => 1, # xcol      => 1,
+    x_data          => 1, # xdata     => 1,
+    x_label         => 1, # xlabel    => 1,
+    x_log           => 1, # xlog      => 1,
+    x_range         => 1, # xrange   => 1,
+    y_col           => 1, # ycol      => 1,
+    y_data          => 1, # ydata    => 1,
+    y_err_col       => 1, # yerr_col  => 1,
+    y_err_data      => 1, # yerr_data => 1,
+    y_label         => 1, # ylabel    => 1,
+    y_log           => 1, # ylog      => 1,
+    y_range         => 1, # yrange    => 1,
+);
+
+our %depreciated_options = (
+    # These options originally had this spelling, instead of [xy]_.
+    #    It was inconsistent and confusing!
+    #
+    xlabel    => 1,
+    xlog      => 1,
+    xrange    => 1,
+    yerr_col  => 1,
+    yerr_data => 1,
+    ylabel    => 1,
+    ylog      => 1,
+    yrange    => 1,
 );
 
 sub is_legal_input {
     return exists $legal_inputs{ $_[0] };
 }
 
+sub is_depreciated_option {
+    return exists $depreciated_options{ $_[0] };
+}
+
+sub newstyle_option {
+    my ( $option_name ) = @_;
+    substr ( $option_name, 1, 0, "_" );
+    return $option_name;
+}
 
 ################################################################################
 # Object methods:
@@ -185,15 +220,21 @@ sub setvars {
         my $arg = shift ( @args );
 
         if ( 'HASH' ne ref $arg ) {
+            $arg = newstyle_option ( $arg )
+                if is_depreciated_option ( $arg );
             die "Attempting to set illegal data member $arg\n"
                 if ! is_legal_input ( $arg );
             $self->{$arg} = shift ( @args );
         }
         else {
             foreach ( keys %$arg ) {
+                my $new_key = is_depreciated_option ( $_ )
+                                  ? newstyle_option ( $_ ) 
+                                  : $_;
+
                 die "Attempting to set illegal data member $_\n"
-                    if ! is_legal_input ( $_ );
-                $self->{$_} = $arg->{$_};
+                    if ! is_legal_input ( $new_key );
+                $self->{$new_key} = $arg->{$_};
             }
         }
     }
@@ -207,11 +248,13 @@ sub death_or_help_if_necessary {
         if $self->{version};
 
     die "Cannot specify x_data/y_data if filename has been specified"
-        if $self->{filename} && exists $self->{y_data};
+        if $self->{filename} && 
+           exists $self->{y_data};
 
     die "Must specify y_data if filename has not been specified " .
         "(are you trying to call the constructor without plot data?)\n"
-        if ! defined $self->{y_data} && !$self->{filename};
+        if ! defined $self->{y_data} && 
+           ! $self->{filename};
 
     # Die if defaults are requested
     #
@@ -282,9 +325,9 @@ sub read_RDB {
 
             push @{$self->{points}{$brk}{y}[   $_]},
                  $r_line->{$self->{y_col}[   $_]};
-            push @{$self->{points}{$brk}{yerr}[$_]},
-                 $r_line->{$self->{yerr_col}[$_]}
-                     if defined $self->{yerr_col};
+            push @{$self->{points}{$brk}{y_err}[$_]},
+                 $r_line->{$self->{y_err_col}[$_]}
+                     if defined $self->{y_err_col};
 
             my $leg_key = $self->{y_col}[$_];
             $leg_key .= $brk
@@ -345,12 +388,12 @@ sub read_file {
 
         foreach ( 0 .. scalar @{$self->{y_col}} - 1 ) {
             my $cur_ycol = $col_number{ $self->{y_col}[$_] };
-            my $cur_ecol = $col_number{ $self->{yerr_col}[$_] }
-                if defined $self->{yerr_col};
+            my $cur_ecol = $col_number{ $self->{y_err_col}[$_] }
+                if defined $self->{y_err_col};
 
             push @{$self->{points}{$brk}{y}[   $_]}, $vals[ $cur_ycol ];
-            push @{$self->{points}{$brk}{yerr}[$_]}, $vals[ $cur_ecol ]
-                if defined $self->{yerr_col};
+            push @{$self->{points}{$brk}{y_err}[$_]}, $vals[ $cur_ecol ]
+                if defined $self->{y_err_col};
 
             my $leg_key = $self->{y_col}[$_] .
                           ( $brk eq $self->{only} ? "" : ", $brk:" );
@@ -367,7 +410,7 @@ sub plot {
 
     $self->make_pdls () if ! $self->pdls_loaded ();
     $self->make_pdl_residuals () if $self->{residuals};
-    $self->logify_pdls () if $self->{xlog} || $self->{ylog};
+    $self->logify_pdls () if $self->{x_log} || $self->{y_log};
 
     $self->setup_win  ();
     $self->get_limits ( 0 );
@@ -383,8 +426,8 @@ sub plot {
     };
     $self->{win}->label_axes (
         ( defined $self->{residuals}
-              ? ( "",      @{$self}{'ylabel','title'} )
-              : ( @{$self}{'xlabel','ylabel','title'} ) ),
+              ? ( "",      @{$self}{'y_label','title'} )
+              : ( @{$self}{'x_label','y_label','title'} ) ),
         $font_charsize_opts
     );
     PGPLOT::pgmtxt ( 'T', 0.5, 0.5, 0.5, $self->{subtitle} )
@@ -409,7 +452,7 @@ sub plot_residuals {
 
     $self->points_draw_loop( 1 );
     $self->{win}->label_axes (
-        $self->{xlabel},
+        $self->{x_label},
         $self->{residuals_label},
         $font_charsize_opts
     );
@@ -471,7 +514,7 @@ sub points_draw_loop {
 sub make_pdls {
     my $self = shift () or die "no self in make_pdls";
 
-    # Do x, y, and yerr:
+    # Do x, y, and y_err:
     #
     foreach my $brk ( sort keys %{$self->{points}}) {
         $self->{pdls}{x_data}{$brk} = pdl $self->{points}{$brk}{x};
@@ -479,11 +522,11 @@ sub make_pdls {
         foreach ( 0 .. scalar @{$self->{points}{$brk}{y}} - 1 ) {
             push @{$self->{pdls}{y_data}{$brk}},
                  pdl $self->{points}{$brk}{y}[$_];
-            if ( defined $self->{yerr_col}[$_] ||
-                 exists $self->{points}{$brk}{yerr}[$_] )
+            if ( defined $self->{y_err_col}[$_] ||
+                 exists $self->{points}{$brk}{y_err}[$_] )
             {
                 push @{$self->{pdls}{y_errs}{$brk}},
-                     pdl $self->{points}{$brk}{yerr}[$_];
+                     pdl $self->{points}{$brk}{y_err}[$_];
                 push @{$self->{pdls}{y_errs_hi}{$brk}},
                      $self->{pdls}{y_data}{$brk}[-1] +
                      $self->{pdls}{y_errs}{$brk}[-1];
@@ -493,6 +536,7 @@ sub make_pdls {
             }
         }
     }
+    print Dumper $self->{pdls};
 }
 
 sub make_pdl_residuals {
@@ -629,8 +673,8 @@ sub set_window {
         }
     }
 
-    $env_pars[-1]{Axis}[0] .= 'L' if $self->{xlog};
-    $env_pars[-1]{Axis}[1] .= 'L' if $self->{ylog};
+    $env_pars[-1]{Axis}[0] .= 'L' if $self->{x_log};
+    $env_pars[-1]{Axis}[1] .= 'L' if $self->{y_log};
 
     $env_pars[-1]{Axis}[1] =~ s/M/N/
         if ! $self->{residuals_pos};
@@ -687,13 +731,13 @@ sub write_legend {
 sub logify_pdls {
     my $self = shift () or die "no self";
 
-    if ( $self->{xlog} ) {
+    if ( $self->{x_log} ) {
         foreach ( keys %{$self->{pdls}{x_data}} ) {
             $self->{pdls}{x_data}{$_}->inplace->log10;
         }
     }
 
-    if ( $self->{ylog} ) {
+    if ( $self->{y_log} ) {
         foreach my $y_type ( $self->all_ydata_names ()  ) {
             foreach my $brk ( keys %{$self->{pdls}{$y_type}} ) {
                 foreach ( @{$self->{pdls}{$y_type}{$brk}} ) {
@@ -749,7 +793,7 @@ sub get_finite_indices {
     print STDERR "Negative data excluded after logarithm\n"
         if $self->{verbose} >= 0  &&
            $size != $inds->nelem  &&
-           ($self->{ylog} || $self->{xlog});
+           ($self->{y_log} || $self->{x_log});
     die "None of the data is finite after logarithm operation-- quitting."
         if $inds->nelem < 1;
 
@@ -784,18 +828,18 @@ sub get_ylimits {
     }
 
     return ( $y_data{lo}->min, $y_data{hi}->max )
-        if not defined $self->{xrange};
+        if not defined $self->{x_range};
 
     return (
         where (
             $y_data{lo},
-            ( $self->{pdls}{x_data}{$brk} > $self->{xrange}[0] ) &
-            ( $self->{pdls}{x_data}{$brk} < $self->{xrange}[1] )
+            ( $self->{pdls}{x_data}{$brk} > $self->{x_range}[0] ) &
+            ( $self->{pdls}{x_data}{$brk} < $self->{x_range}[1] )
         )->min(),
         where (
             $y_data{hi},
-            ( $self->{pdls}{x_data}{$brk} > $self->{xrange}[0] ) &
-            ( $self->{pdls}{x_data}{$brk} < $self->{xrange}[1] )
+            ( $self->{pdls}{x_data}{$brk} > $self->{x_range}[0] ) &
+            ( $self->{pdls}{x_data}{$brk} < $self->{x_range}[1] )
         )->max()
     );
 }
@@ -883,25 +927,25 @@ sub pad_limits {
 
     # Override if user-specified limits exist:
     #
-    if ( defined $self->{xrange} ) {
-        $self->{limits}{x}{lo} = $self->{xrange}[0];
-        $self->{limits}{x}{hi} = $self->{xrange}[1];
+    if ( defined $self->{x_range} ) {
+        $self->{limits}{x}{lo} = $self->{x_range}[0];
+        $self->{limits}{x}{hi} = $self->{x_range}[1];
     }
-    if ( defined $self->{yrange} ) {
-        $self->{limits}{y}{lo} = $self->{yrange}[0];
-        $self->{limits}{y}{hi} = $self->{yrange}[1];
+    if ( defined $self->{y_range} ) {
+        $self->{limits}{y}{lo} = $self->{y_range}[0];
+        $self->{limits}{y}{hi} = $self->{y_range}[1];
     }
 
     # Give a 2-unit range is either axis's range is zero:
     #
     my $epsilon = 1.0e-9;
-    if ( not defined $self->{xrange} &&
+    if ( not defined $self->{x_range} &&
          $self->limits_width ( 'x' ) < $epsilon )
     {
         $self->{limits}{x}{lo} -= .1;
         $self->{limits}{x}{hi} += .1;
     }
-    if ( not defined $self->{yrange} &&
+    if ( not defined $self->{y_range} &&
          $self->limits_width ( 'y' ) < $epsilon )
     {
         $self->{limits}{y}{lo} -= .1;
@@ -924,7 +968,7 @@ sub massage_args {
 
     # Split data params on commas if they are defined:
     #
-    foreach ( qw/y_col yerr_col xrange yrange legend_location legend_text/ ) {
+    foreach ( qw/y_col y_err_col x_range y_range legend_location legend_text/ ) {
         $self->{$_} = [ split /,/, $self->{$_} ]
             if  exists $self->{$_} &&
                defined $self->{$_};
@@ -940,10 +984,10 @@ sub massage_args {
     $self->set_plot_position ();
 
     if ( $self->{filename} ) {
-        $self->setvars ( xlabel => "$self->{x_col}"    )
-            if '' eq $self->{xlabel};
-        $self->setvars ( ylabel => "@{$self->{y_col}}" )
-            if '' eq $self->{ylabel};
+        $self->setvars ( x_label => "$self->{x_col}"    )
+            if '' eq $self->{x_label};
+        $self->setvars ( y_label => "@{$self->{y_col}}" )
+            if '' eq $self->{y_label};
     }
     else {
         die "The x_col and y_col parameters are used only with the filename " .
@@ -990,7 +1034,7 @@ sub get_nonfile_points_datatype {
 sub read_nonfile_points {
     my $self = shift () or die "no self";
 
-    # Read data given with the x_data, y_data[, yerr_data] arguments.
+    # Read data given with the x_data, y_data[, y_err_data] arguments.
     #
     die "no x_data given.  shouldn't be here!"
         if not exists $self->{x_data};
@@ -1007,19 +1051,19 @@ sub read_nonfile_points {
     if ( 'ARRAY' eq $datatype ) {
         $self->{points}{$brk}{x} = [ @{$self->{x_data}} ];
         foreach (0 .. scalar @{$self->{y_data}} - 1) {
-            $self->{points}{$brk}{y}[$_]    = [ @{$self->{y_data}[$_]}    ];
-            $self->{points}{$brk}{yerr}[$_] = [ @{$self->{yerr_data}[$_]} ]
-                if defined $self->{yerr_data};
+            $self->{points}{$brk}{y}[$_]     = [ @{$self->{y_data}[$_]}    ];
+            $self->{points}{$brk}{y_err}[$_] = [ @{$self->{y_err_data}[$_]} ]
+                if defined $self->{y_err_data};
         }
     }
     elsif ( 'PDL' eq $datatype ) {
         $self->{pdls}{x_data}{$brk} = $self->{x_data}->copy;
         foreach (0 .. scalar @{$self->{y_data}} - 1) {
             $self->{pdls}{y_data}{$brk}[$_] = $self->{y_data}[$_]->copy;
-            if ( defined $self->{yerr_data} &&
-                     defined $self->{yerr_data}[$_] )
+            if ( defined $self->{y_err_data} &&
+                     defined $self->{y_err_data}[$_] )
             {
-                $self->{pdls}{y_errs}{$brk}[$_] = $self->{yerr_data}[$_]->copy;
+                $self->{pdls}{y_errs}{$brk}[$_] = $self->{y_err_data}[$_]->copy;
                 $self->{pdls}{y_errs_hi}{$brk}[$_] =
                     $self->{pdls}{y_data}{$brk}[$_] +
                     $self->{pdls}{y_errs}{$brk}[$_];
@@ -1199,8 +1243,8 @@ Plot data from an arbitrarily-delimitted file (the data in columns "vel" and
                   x_col    => 'time',
                   y_col    => 'vel,acc',
                   err_col  => 'vel_err,acc_err',
-                  xlabel   => "time",
-                  ylabel   => "velocity and acceleration",
+                  x_label  => "time",
+                  y_label  => "velocity and acceleration",
               );
     $plt->plot ();
 
@@ -1236,10 +1280,10 @@ Generate multiple plots with the same object:
     my @y2 = 50..59;
 
     my $plt = Chart::Scientific->new (
-                  x_data => \@x1,
-                  y_data => \@y1,
-                  xlabel => "test x",
-                  ylabel => "test y",
+                  x_data  => \@x1,
+                  y_data  => \@y1,
+                  x_label => "test x",
+                  y_label => "test y",
               );
     $plt->setvars ( title => 'testa', device => '1/xs' );
     $plt->plot ();
@@ -1310,7 +1354,7 @@ all data must be of the same type.
 =item B<x_data>
 
 An array or piddle that contains the x-data for this plot.
-The x_data, y_data, and yerr_data specified must be of the same datatype,
+The x_data, y_data, and y_err_data specified must be of the same datatype,
 arrays or piddles.
 
 =item B<y_data>
@@ -1318,28 +1362,28 @@ arrays or piddles.
 An array or piddle that contains the y-data for this plot.
 Multiple sets of y-data to plot against the same x-data can be specified
 with an array of arrays or an array of piddles.
-The x_data, y_data, and yerr_data specified must be of the same datatype,
+The x_data, y_data, and y_err_data specified must be of the same datatype,
 arrays or piddles.
 
-=item B<yerr_data>
+=item B<y_err_data>
 
 An array or piddle that contains the error bars for the y-data.
 
-There must be the same number of yerr_data as there are y_data, e.g.,
+There must be the same number of y_err_data as there are y_data, e.g.,
 
     y_data => [ \@y_data1, \@y_data2 ]
 
 cannot be acompanied by:
 
-    yerr_data => [ \@y_err ]
+    y_err_data => [ \@y_err ]
 
 but 
 
-    yerr_data => [ \@y_err1, \@y_err2  ]
+    y_err_data => [ \@y_err1, \@y_err2  ]
 
 would be allowed.
 
-The x_data, y_data, and yerr_data specified must be of the same datatype,
+The x_data, y_data, and y_err_data specified must be of the same datatype,
 arrays or piddles.
 
 =back
@@ -1377,7 +1421,7 @@ The name of the x column.
 
 A comma-separated list of the name(s) of the y column(s).
 
-=item B<yerr_col>
+=item B<y_err_col>
 
 A comma-separated list of the name(s) of the y errorbar column(s).
 
@@ -1385,7 +1429,7 @@ A comma-separated list of the name(s) of the y errorbar column(s).
 
 (Optional) The name of the grouping column.  The grouping column separates
 a x_col or y_col into different datasets, based on the value of the grouping
-column in each row.  For example, if xcol => x, y_col => y, group => g:
+column in each row.  For example, if x_col => x, y__col => y, group => g:
 
                      x   y   g
                      1   2   dataset1
@@ -1407,18 +1451,18 @@ of data would be plotted as separate lines on the plot.
 
 =over 8
 
-=item B<xrange >
+=item B<x_range >
 
 Specify a comma-separated non-default range for the X values.  Example: an
-xrange value of '-5,5' will plot the data from x=-5 to x=5.  If the I<xlog>
-flag is on, the xrange values must be specified in powers of ten.  E.G. -xlog
+x_range value of '-5,5' will plot the data from x=-5 to x=5.  If the I<x_log>
+flag is on, the x_range values must be specified in powers of ten.  E.G. -x_log
 -x -1,2 will plot the data on a logged X range from 0.1 to 100.
 
-=item B<yrange>
+=item B<y_range>
 
 Specify a comma-separated non-default range for the X values.  Example: a
-yrange value of '-5,5' will plot the data from y=-5 to y=5.  If the I<ylog>
-flag is on, the yrange values must be specified in powers of ten.  E.G. -ylog
+y_range value of '-5,5' will plot the data from y=-5 to y=5.  If the I<y_log>
+flag is on, the y_range values must be specified in powers of ten.  E.G. -y_log
 -y -1,2 will plot the data on a logged Y range from 0.1 to 100.
 
 =back
@@ -1455,11 +1499,11 @@ Set to true to supress line drawing.  Lines are drawn by default.
 
 =over 8
 
-=item B<xlog>
+=item B<x_log>
 
 Set to true to create a plot with a logged x axis.
 
-=item B<ylog>
+=item B<y_log>
 
 Set to true to create a plot with a logged y axis.
 
@@ -1526,11 +1570,11 @@ A string to specify the subtitle of the plot.  If the PGPLOT.pm
 module is not on the system, the subtitle will be appended to the
 title.
 
-=item B<xlabel>
+=item B<x_label>
 
 A string to specify the label for the x axis.
 
-=item B<ylabel>
+=item B<y_label>
 
 A string to specify the label for the y axis.
 
